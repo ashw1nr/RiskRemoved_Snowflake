@@ -193,6 +193,19 @@ def test_a_password_in_secrets_replaces_the_shown_one(auth) -> None:  # type: ig
     assert auth.sign_in("analyst", auth.DEMO_PASSWORDS["analyst"])
 
 
+def test_an_officer_only_url_offers_only_the_officer(auth) -> None:  # type: ignore[no-untyped-def]
+    auth.st.secrets = {
+        "snowflake_officer": {"user": "O"},
+        "demo_auth": {"officer_password": "kept-secret", "show_officer_password": True},
+    }
+    assert auth.available() == ["officer"]
+    assert not auth.sign_in("analyst", auth.DEMO_PASSWORDS["analyst"])
+    assert not auth.hidden("officer")  # shown on purpose on this URL
+    auth.fill("officer")
+    assert auth.st.session_state["login_password"] == "kept-secret"
+    assert auth.sign_in("officer", auth.st.session_state["login_password"])
+
+
 # --------------------------------------------------------------------------- #
 # Visual helpers (app/lib/ui.py)
 # --------------------------------------------------------------------------- #

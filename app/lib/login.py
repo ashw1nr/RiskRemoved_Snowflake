@@ -83,7 +83,8 @@ def render() -> None:
                     "Those credentials do not match a demo user. Use one of the accounts shown."
                 )
 
-        for key, persona in auth.PERSONAS.items():
+        for key in auth.available():
+            persona = auth.PERSONAS[key]
             maker = persona["can_investigate"]
             with ui.card(
                 f"persona-{key}",
@@ -100,7 +101,7 @@ def render() -> None:
                     if auth.hidden(key):
                         st.caption("Password held by the Principal Officer")
                     else:
-                        st.code(auth.DEMO_PASSWORDS[key], language=None)
+                        st.code(auth.shown_password(key), language=None)
                 use.button(
                     "Use",
                     key=f"use_{key}",

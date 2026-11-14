@@ -79,13 +79,44 @@ def _secret_password(username: str) -> str | None:
     return str(value) if value else None
 
 
+def _shown(username: str) -> bool:
+    """[demo_auth] show_<user>_password = true: a URL kept for that persona's demo."""
+    try:
+        return st.secrets["demo_auth"].get(f"show_{username}_password") is True
+    except Exception:
+        return False
+
+
+def _has(section: str) -> bool:
+    try:
+        return section in st.secrets
+    except Exception:  # no secrets file at all
+        return False
+
+
+def available() -> list[str]:
+    """Personas this deployment offers.
+
+    A hosted URL whose secrets hold only [snowflake_officer] is the officer's
+    URL: offering the analyst there would run the analyst as the signing user.
+    """
+    if _has("snowflake_officer") and not _has("snowflake"):
+        return ["officer"]
+    return list(PERSONAS)
+
+
 def hidden(username: str) -> bool:
     """True where this persona's password comes from secrets and is not shown."""
-    return _secret_password(username) is not None
+    return _secret_password(username) is not None and not _shown(username)
 
 
 def _password(username: str) -> str:
     return _secret_password(username) or DEMO_PASSWORDS[username]
+
+
+def shown_password(username: str) -> str:
+    """The password the sign-in page displays for a persona (only when not hidden)."""
+    return _password(username)
 
 
 # The digests are derived once from the demo passwords, so the two can never drift.
@@ -95,7 +126,7 @@ for _user, _password_text in DEMO_PASSWORDS.items():
 
 def sign_in(username: str, password: str) -> bool:
     key = username.strip().lower()
-    user = PERSONAS.get(key)
+    user = PERSONAS.get(key) if key in available() else None
     expected = _digest(_password(key)) if user else ""
     if not user or not hmac.compare_digest(_digest(password), expected):
         return False
@@ -113,10 +144,10 @@ def sign_out(prefill: str | None = None) -> None:
 def fill(username: str) -> None:
     """Put a persona's demo credentials into the sign-in form (an on_click callback).
 
-    A password held in secrets is not filled in: whoever signs in must know it.
+    A password held in secrets is not filled in unless the secrets say to show it.
     """
     st.session_state["login_user"] = username
-    st.session_state["login_password"] = "" if hidden(username) else DEMO_PASSWORDS[username]
+    st.session_state["login_password"] = "" if hidden(username) else _password(username)
 
 
 def current() -> dict[str, Any] | None:

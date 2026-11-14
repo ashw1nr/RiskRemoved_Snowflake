@@ -77,10 +77,15 @@ def _section() -> str:
     The hosted app has two service users: [snowflake] for everyone, and
     [snowflake_officer] (the compliance role, so ATTEST_STR accepts it) only
     while the Principal Officer persona is signed in. Without that section, the
-    officer runs as everyone else and the database refuses to sign.
+    officer runs as everyone else and the database refuses to sign. A URL
+    whose secrets hold only [snowflake_officer] is the officer's own: it runs
+    as that user throughout (lib/auth.py offers no other persona there).
     """
+    officer_cfg = _secrets("snowflake_officer") is not None
+    if officer_cfg and _secrets("snowflake") is None:
+        return "snowflake_officer"
     officer = st.session_state.get("auth_user") == "officer"
-    return "snowflake_officer" if officer and _secrets("snowflake_officer") else "snowflake"
+    return "snowflake_officer" if officer and officer_cfg else "snowflake"
 
 
 class _Current:
