@@ -62,6 +62,7 @@ DECLARE
     task_state VARCHAR;
     full_scan BOOLEAN;
     routed VARIANT DEFAULT NULL;
+    tasks RESULTSET;
     result VARIANT;
 BEGIN
     started := CURRENT_TIMESTAMP();
@@ -134,15 +135,25 @@ BEGIN
         -- ARM routes with a full scan: the chain was just emptied, so the baseline
         -- is every signal the arrived legs raise.
         full_scan := (act = 'ARM');
-        CALL {{ ROUTE }}(:full_scan);
-        routed := (SELECT $1 FROM TABLE(RESULT_SCAN(LAST_QUERY_ID())));
+        CALL {{ ROUTE }}(:full_scan) INTO :routed;
     END IF;
 
     held := (SELECT COUNT_IF(held_back) FROM {{ TXN }});
     arrived := (SELECT COUNT_IF(NOT held_back) FROM {{ TXN }});
     next_ts := (SELECT MIN(txn_timestamp) FROM {{ TXN }} WHERE held_back);
-    SHOW TASKS LIKE '{{ T.sim_task }}' IN SCHEMA {{ EV }};
-    task_state := (SELECT MAX("state") FROM TABLE(RESULT_SCAN(LAST_QUERY_ID())));
+    -- Read SHOW's own result set: RESULT_SCAN(LAST_QUERY_ID()) here came back
+    -- NULL on the hosted app ("Statement NULL not found") and took the Overview
+    -- page down. The task's state is a display detail, so it never fails a call.
+    BEGIN
+        tasks := (SHOW TASKS LIKE '{{ T.sim_task }}' IN SCHEMA {{ EV }});
+        LET c CURSOR FOR tasks;
+        FOR t IN c DO
+            task_state := t."state";
+        END FOR;
+    EXCEPTION
+        WHEN OTHER THEN
+            task_state := 'unknown';
+    END;
     -- The task stops itself once the ledger has fully arrived.
     IF (held = 0 AND task_state = 'started') THEN
         ALTER TASK {{ TASK }} SUSPEND;
@@ -194,8 +205,9 @@ CREATE OR ALTER TASK {{ TASK }}
 AS
 EXECUTE IMMEDIATE $$
 BEGIN
-    CALL {{ EV }}.{{ T.sim_control }}('TICK', NULL, 'TASK');
-    LET counts VARCHAR := (SELECT TO_JSON($1) FROM TABLE(RESULT_SCAN(LAST_QUERY_ID())));
-    CALL SYSTEM$SET_RETURN_VALUE(:counts);
+    LET counts VARIANT;
+    CALL {{ EV }}.{{ T.sim_control }}('TICK', NULL, 'TASK') INTO :counts;
+    LET counts_json VARCHAR := TO_JSON(:counts);
+    CALL SYSTEM$SET_RETURN_VALUE(:counts_json);
 END;
 $$;
