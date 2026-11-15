@@ -45,11 +45,28 @@ drafter's model family) gates writing back. The data account's `REVIEW_STR`
 gates filing. The agent's `APPROVE` is passed to `SUBMIT_AI_DRAFT` but proves
 nothing on its own; the write-back is a DRAFT until `REVIEW_STR` approves it.
 
-**How.** `src/risk_copilot/agentic/str_pipeline.py` runs: DRAFT_STR baseline →
-evidence package (hashed) → Cortex Analyst context → `RC_STR_AGENT` (draft with
-claude-sonnet-4-6, cross-review, one redraft on REJECT) → `SUBMIT_AI_DRAFT` →
-`REVIEW_STR` → PDF. *Verified end to end:* `READY_FOR_ATTESTATION`, 4-page
-FIU-IND PDF.
+**How.** `GENERATE_AI_STR` (`sql/procedures/09_generate_ai_str.sql`, Nov 2026)
+runs it all inside Snowflake, so a hosted app needs only USAGE on that one
+procedure: spend cap → DRAFT_STR baseline → evidence package (hashed by the
+agent's `PUT_EVIDENCE_PACKAGE`) with semantic-view context and Cortex Search
+regulation excerpts → `RC_STR_AGENT` via `DATA_AGENT_RUN` (it chooses its tool
+calls: draft with claude-sonnet-4-6, cross-review, one redraft on REJECT; the
+same tools in that order if the agent stops short) → `SUBMIT_AI_DRAFT` →
+`REVIEW_STR` → PDF, returned base64. *Verified as the public service user:*
+four cases, `READY_FOR_ATTESTATION` in 66-102 s, agent chose its own tools;
+one miscounted draft ("13 deposits" for 12) was rejected by the agent's
+figure check. The laptop pipeline (`str_pipeline.py`) still serves the Slack
+bot.
+
+**Spend cap.** The button is on a public URL: one run per case per 5 minutes
+and 30 a day (`conf/base.yml:cortex`), counted from `AGENT_ACTION_LOG`; a
+refusal is logged REFUSED.
+
+**Regulation text (unstructured).** `REGULATORY_SEARCH_SVC`
+(`sql/07_semantic/02_regulatory_search.sql`) indexes the governed clauses. The
+drafter cites the retrieved clause; numbers in an excerpt are not allowed
+figures, and `REVIEW_STR` still rejects any figure that is not computed.
+*Verified:* the hero narrative cites PML Rules Rule 3(1)(A).
 
 ## 3. One Snowflake account for data and agent (was two)
 
@@ -62,7 +79,10 @@ copied evidence between them. The new account serves both (capability probe:
 `RISK_COPILOT_AGENT` (agent, tools, PDFs) are two databases in one account. The
 agent runs as its own SERVICE user and role (`RC_AGENT_SVC` /
 `RC_AGENT_ROLE`) with no grant on the data database: it still sees only the
-hashed package the bridge hands it.
+hashed package it is handed. The data admin role (owner of `GENERATE_AI_STR`)
+holds USAGE on the agent, its tools and warehouse, and SELECT on its drafts
+and reviews (`sql/11_app_access/02_agent_tools.sql`); the public role holds
+nothing in the agent database, and still nothing on `SUBMIT_AI_DRAFT`.
 
 **How.** `bridge/.env` points both sides at the same account. The expired
 account's id was removed from three code defaults; `AGENT_SNOWFLAKE_ACCOUNT` is

@@ -20,6 +20,10 @@ the reasoning behind each choice: `docs/ARCHITECTURE_DECISIONS.md`.
 - **App**: SiS `RISK_COPILOT_APP_DEV` redeployed with the live simulator and the
   shared conversation. Public service user `RC_PUBLIC_APP_USER_DEV` re-created;
   its secrets file points at the new account.
+- **AI STR in Snowflake** (Nov 2026): `GENERATE_AI_STR` runs the agent chain
+  (Cortex Agent first, its tools as fallback, Cortex Search regulation
+  excerpts) and returns the PDF; button 4 works on every hosted link. Spend cap
+  5 min per case, 30 runs a day.
 - **Gates**: 647 passed, 3 skipped; ruff, mypy, SQL lint clean.
 
 ## Needs you
@@ -37,7 +41,11 @@ the reasoning behind each choice: `docs/ARCHITECTURE_DECISIONS.md`.
    the second file the app works but the officer cannot sign.
 3. **Click once in SiS** -- one sign-off as the Principal Officer, then reset.
    Not yet clicked inside SiS (the browser tool cannot tick a form checkbox).
-4. **Commit** -- nothing from this session is committed.
+4. **Push** -- the hosted links pull `feature/ashwinFinals` from GitHub; nothing
+   reaches them until it is pushed (then reboot both apps).
+5. **Rotate the public key** -- `riskcopilot -p dev app public-access --rotate`
+   (an earlier SiS deploy uploaded it to the app stage; since removed), then
+   re-paste the public secrets file into both hosted apps.
 
 ## Open work (in priority order)
 

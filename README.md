@@ -243,12 +243,17 @@ the cases.
 The older CLI path (`riskcopilot load --replace` + `replay`) still works.
 
 **The AI-drafted STR** (same account, `RISK_COPILOT_AGENT.STR.RC_STR_AGENT`):
-`python -m risk_copilot.agentic.str_pipeline CASE-4399c4c86db5c6ea --out str.pdf`
-drafts with claude-sonnet-4-6, cross-reviews with openai-gpt-5.1 / llama3.3-70b,
-writes back as FINDING v2, and runs the data account's own `REVIEW_STR` on it.
-On dev it ends `READY_FOR_ATTESTATION` and renders a 4-page FIU-IND PDF. The
-Slack bot runs the same pipeline (`str CASE-...`); it needs the Slack tokens in
-`bridge/.env`.
+on the Case page, **4 · AI STR + PDF** calls `GENERATE_AI_STR`, which runs the
+whole chain inside Snowflake, so it works on the hosted links too. It builds the
+hashed evidence package, retrieves the matching regulation text with Cortex
+Search, and runs the Cortex Agent, which drafts with claude-sonnet-4-6 and
+cross-reviews with openai-gpt-5.1 / llama3.3-70b. It then writes the draft back
+as a new FINDING version, runs the data account's own `REVIEW_STR` on it, and
+returns the FIU-IND PDF. A run takes about a minute and is capped at one per
+case per 5 minutes and 30 a day.
+From the laptop, `python -m risk_copilot.agentic.str_pipeline CASE-4399c4c86db5c6ea --out str.pdf`
+runs the earlier bridge version of the same chain. The Slack bot uses it
+(`str CASE-...`); it needs the Slack tokens in `bridge/.env`.
 
 ## Development
 
