@@ -129,6 +129,7 @@ def audit_all(limit: int = 2000) -> pd.DataFrame:
     df = cached(
         f"""
         SELECT logged_at, agent_mode, outcome, latency_ms, model_version, refusal_reason,
+               snowflake_user,
                tools_invoked[0]::STRING AS tool,
                DATEDIFF('second', logged_at, {NOW}) AS age_s
         FROM {AUD}.AGENT_ACTION_LOG

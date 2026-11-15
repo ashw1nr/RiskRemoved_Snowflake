@@ -284,6 +284,7 @@ with t3:
                         tooltip=[
                             alt.Tooltip("logged_at:T", format="%d %b %H:%M:%S"),
                             "tool:N",
+                            alt.Tooltip("snowflake_user:N", title="Snowflake user"),
                             "agent_mode:N",
                             "outcome:N",
                             "refusal_reason:N",

@@ -327,7 +327,7 @@ def rules() -> pd.DataFrame:
 def audit_log(limit: int = 100) -> pd.DataFrame:
     return cached(
         f"""
-        SELECT logged_at, agent_mode, invoked_by, user_role, tools_invoked,
+        SELECT logged_at, snowflake_user, agent_mode, invoked_by, user_role, tools_invoked,
                case_ids_touched, model_version, outcome, refusal_reason, latency_ms
         FROM {AUD}.AGENT_ACTION_LOG ORDER BY logged_at DESC LIMIT {int(limit)}
         """
