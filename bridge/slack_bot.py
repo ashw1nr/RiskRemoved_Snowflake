@@ -428,6 +428,22 @@ def handle_dm(event, say):
 
 
 # ---------------------------------------------------------------------------
+# App Home tab: show the help text instead of Slack's placeholder
+# ---------------------------------------------------------------------------
+@app.event("app_home_opened")
+def handle_home(event, client):
+    if event.get("tab") != "home":
+        return
+    try:
+        client.views_publish(user_id=event["user"], view={
+            "type": "home",
+            "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": _HELP}}],
+        })
+    except Exception as exc:  # Home tab is cosmetic
+        log.warning("Home tab publish failed: %s", exc)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

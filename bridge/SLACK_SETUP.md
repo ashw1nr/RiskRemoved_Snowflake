@@ -19,7 +19,7 @@ Connect Risk Copilot to Slack so analysts can generate AI-drafted, cross-reviewe
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.11-3.13 (on 3.15, `cffi` and `pyyaml` have no Windows wheels and fail to build without a C compiler)
 - A Slack workspace (free tier is fine)
 - (Optional) Snowflake credentials for live mode. Without them, the bot runs in demo mode with realistic canned responses.
 
@@ -283,6 +283,83 @@ Slack app; nobody shares a private key.
 
 ---
 
+## Single-account setup with an existing Slack app (walkthrough)
+
+The steps actually followed to bring the bot up on a new machine, using an already-created
+Slack app and one Snowflake account that hosts both the data and the STR agent. Each step
+names the error you get if it is skipped.
+
+**You receive (over a private channel, never in git or chat):** the three Slack values, one
+Snowflake user name, its `.p8` private key (and passphrase, if encrypted), and the account
+identifier (`ORGNAME-ACCOUNTNAME`).
+
+1. **Place the secrets** -- both paths are gitignored:
+   ```text
+   bridge/.env              from bridge/.env.example (NOT the repo-root .env.example)
+   bridge/keys/<user>.p8
+   ```
+   The repo-root `.env` holds `RC_*` settings for the CLI/app; the bot never reads it.
+   Using the root template for `bridge/.env` crashes with `KeyError: 'SLACK_BOT_TOKEN'`.
+
+2. **Fill `bridge/.env`.** With one account, point both blocks at the same login:
+   ```ini
+   SNOWFLAKE_ACCOUNT=<ORGNAME-ACCOUNTNAME>
+   SNOWFLAKE_USER=<USER>
+   SNOWFLAKE_ROLE=RC_SERVICE_ROLE_DEV
+   SNOWFLAKE_WAREHOUSE=RC_DEV_WH_DEV
+   SNOWFLAKE_PRIVATE_KEY_PATH=keys/<user>.p8
+   AGENT_SNOWFLAKE_ACCOUNT=<ORGNAME-ACCOUNTNAME>
+   AGENT_SNOWFLAKE_USER=<USER>
+   AGENT_SNOWFLAKE_ROLE=RC_AGENT_ROLE
+   AGENT_SNOWFLAKE_WAREHOUSE=RC_AGENT_WH
+   AGENT_PRIVATE_KEY_PATH=keys/<user>.p8
+   DEMO_MODE=false
+   ```
+   The account identifier for a user is in `conf/generated/capabilities.<CONNECTION>.yml`
+   (`organization` + `account_name`). Verify role and warehouse names as that user --
+   dev objects carry the `_DEV` suffix:
+   ```sql
+   SELECT CURRENT_AVAILABLE_ROLES();
+   SHOW WAREHOUSES;
+   ```
+
+3. **Install and start** from inside `bridge/` (relative key paths resolve from there):
+   ```powershell
+   cd bridge
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\pip install -r requirements.txt
+   .\.venv\Scripts\python.exe slack_bot.py
+   ```
+   Expect `Starting Risk Copilot Slack bot (LIVE mode)...` and `Bolt app is running!`.
+
+4. **Configure the Slack app** (api.slack.com/apps > your app). Scopes alone are not enough --
+   Slack only delivers events the app subscribes to:
+   - **OAuth & Permissions > Bot Token Scopes:** `app_mentions:read`, `chat:write`,
+     `channels:history`, `channels:read`, `files:write`, `im:history`.
+   - **Event Subscriptions > Subscribe to bot events:** `app_mention` and `message.im`, then
+     **Save Changes**. `message.channels` is not used by the bot; it can be removed.
+   - **App Home > Show Tabs:** enable the **Messages Tab** and allow users to send messages
+     (needed for DMs).
+   - **Reinstall to Workspace** after any scope change. If the `xoxb-` token changes, update
+     `bridge/.env` and restart the bot.
+
+5. **Check the token's real scopes** (prints scope names only, never the token):
+   ```powershell
+   $t = ((Get-Content bridge\.env | ? { $_ -match '^SLACK_BOT_TOKEN=' }) -split '=',2)[1].Trim()
+   (Invoke-WebRequest -UseBasicParsing -Method Post https://slack.com/api/auth.test `
+     -Headers @{Authorization="Bearer $t"}).Headers['x-oauth-scopes']
+   ```
+
+6. **Invite and test** in a channel: `/invite @RiskCopilot`, then `@RiskCopilot help` (pick the
+   bot from the `@` autocomplete). The bot log shows `Question from U...` for each real
+   question. Then try `@RiskCopilot what are the pending cases?` and
+   `@RiskCopilot pdf CASE-...`.
+
+> **Only one machine per Slack app.** If the person who handed you the tokens also runs the
+> bot, Slack splits events between the two processes.
+
+---
+
 ## Architecture
 
 The data and the agent live in **two different Snowflake accounts** (different organisations and
@@ -367,6 +444,14 @@ analyst_client.py
 | `REJECTED_BY_AGENT_REVIEW` | Working as intended: the agent's checker found a defect (listed in the thread); nothing was written back. Re-run to redraft. |
 | `agent:run returned 401/403` | `AGENT_PRIVATE_KEY_PATH` must match the public key set on `RC_AGENT_SVC` in the agent account. |
 | DMs get no answer | Add `im:history` and the `message.im` event, then reinstall the app. |
+| `KeyError: 'SLACK_BOT_TOKEN'` at start | `bridge/.env` was created from the repo-root template. Recreate it from `bridge/.env.example`. |
+| `ModuleNotFoundError: No module named 'yaml'` | Reinstall `requirements.txt` (now includes `pyyaml` and `pydantic`, used by `risk_copilot.config`). |
+| `Failed to build 'cffi'` / `pyyaml` needs Visual C++ | Python 3.15 is too new for prebuilt wheels. Recreate the venv with `py -3.12`. |
+| `No module named 'snowflake.connector.vendored'` | Fixed in `analyst_client.py` (connector 5.x dropped its vendored `requests`); pull the latest code. |
+| `FileNotFoundError: keys/...p8` | Relative key paths resolve from the working directory for Cortex Analyst; start the bot from inside `bridge/`. |
+| Analyst generates SQL, then `002043 Object does not exist` | Usually no usable warehouse: `SNOWFLAKE_WAREHOUSE` names one that does not exist (`RC_DEV_WH` vs `RC_DEV_WH_DEV`). Check `SHOW WAREHOUSES` as the bot's role. |
+| Log shows only `app_home_opened`, never `Question from` | The app does not subscribe to `app_mention` (Event Subscriptions). `message.channels` alone is ignored by the bot. |
+| Home tab says "This is still a work in progress" | Fixed: the bot now publishes the help text on `app_home_opened`. Restart it. |
 
 ---
 

@@ -185,8 +185,8 @@ class AnalystClient:
 
         started = time.time()
         conn = self._get_connection()
-        # Call the Cortex Analyst REST API
-        from snowflake.connector.vendored import requests
+        # Call the Cortex Analyst REST API (connector 5.x no longer vendors requests)
+        import requests
 
         host = f"{conn.account}.snowflakecomputing.com"
         if "." not in conn.account:
