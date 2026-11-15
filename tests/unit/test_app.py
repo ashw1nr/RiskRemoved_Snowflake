@@ -70,6 +70,7 @@ def test_dev_names_carry_the_suffix_and_tables_are_qualified_by_schema(
         "attest_str",
         "reset_cases",
         "sim_control",
+        "generate_ai_str",
     }
     assert cfg["role"]["compliance_officer"] == "COMPLIANCE_OFFICER_DEV"
     assert cfg["semantic_view"] == "RISK_COPILOT_DEV.CURATED.SV_RISK_COPILOT_DEV"

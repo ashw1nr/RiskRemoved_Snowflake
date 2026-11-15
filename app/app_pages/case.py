@@ -449,14 +449,14 @@ if last:
         st.error(f"{label} refused: {result}")
 
 
-# ---- the agentic path: Cortex Agent in the agent account ------------------- #
+# ---- the agentic path: the STR agent's tools, run inside Snowflake ---------- #
 with st.container(border=True):
     a1, a2 = st.columns([3, 1], vertical_alignment="center")
     a1.markdown(
-        "**AI STR (Cortex Agent)**: `RC_STR_AGENT`, in a separate Snowflake account, drafts the "
-        "narrative with an Anthropic model, a non-Anthropic model cross-reviews it, and every "
-        "amount, count and date is traced to this case's logged evidence. An approved draft is "
-        "written back here as a new version and re-checked by the Reviewer."
+        "**AI STR (agent tools in Snowflake)**: the STR agent's drafter (an Anthropic model) "
+        "writes the narrative, a non-Anthropic model cross-reviews it, and every amount, count and "
+        "date is traced to this case's logged evidence. An approved draft is written back here as "
+        "a new version and re-checked by the Reviewer. One procedure runs it all, about a minute."
     )
     ok_agent, why = agent.available()
     if a2.button(
@@ -464,7 +464,7 @@ with st.container(border=True):
         type="secondary",
         width="stretch",
         disabled=locked or not ok_agent,
-        help=why or "Runs the cross-account agent pipeline (a few minutes).",
+        help=why or "Runs GENERATE_AI_STR inside Snowflake (about a minute).",
     ):
         with st.status("Running the STR agent...", expanded=True) as box:
             res = agent.generate(
@@ -472,9 +472,10 @@ with st.container(border=True):
                 progress=lambda step, msg: box.write(f"`{step}` {msg}"),
                 user=(auth.current() or {}).get("username", "unknown"),
             )
+            failed = res.get("error") and res.get("status") != "REFUSED"
             box.update(
                 label=f"STR agent: {res.get('status')}",
-                state="error" if res.get("error") else "complete",
+                state="error" if failed else "complete",
             )
         st.session_state.setdefault("ai_str", {})[case_id] = res
         st.cache_data.clear()
@@ -483,7 +484,9 @@ with st.container(border=True):
     res = st.session_state.get("ai_str", {}).get(case_id)
     if res:
         air, dr = res.get("ai_review") or {}, res.get("data_review") or {}
-        if res.get("error") and not res.get("sections"):
+        if res.get("status") == "REFUSED":
+            st.info(res.get("error") or "Refused by the demo's spend cap.")
+        elif res.get("error") and not res.get("sections"):
             st.error(f"STR agent failed: {res['error']}")
         else:
             (st.success if res.get("status") == "READY_FOR_ATTESTATION" else st.warning)(

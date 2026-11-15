@@ -80,11 +80,13 @@ def test_the_public_role_can_run_every_case_tool(repo_root: Path) -> None:
     for path in deployer.stage_files("procedures"):
         procs |= _signatures(deployer.render(path))
     grants = {}
+    pub = deployer.settings.sql_context()["role"]["public_app"]
     for path in deployer.stage_files("app_access"):
         for m in re.finditer(
-            r"GRANT USAGE ON PROCEDURE ([\w.]+)\(([^)]*)\)", deployer.render(path)
+            r"GRANT USAGE ON PROCEDURE ([\w.]+)\(([^)]*)\) TO ROLE (\w+)", deployer.render(path)
         ):
-            grants[m.group(1).upper()] = tuple(t.strip().upper() for t in m.group(2).split(","))
+            if m.group(3).upper() == pub:  # the agent-tool grants go to the admin role
+                grants[m.group(1).upper()] = tuple(t.strip().upper() for t in m.group(2).split(","))
     assert grants, "the app_access stage grants no procedure"
     # Each grant names a real signature; a mismatch fails only at deploy time otherwise.
     for name, types in grants.items():
@@ -99,6 +101,18 @@ def test_the_public_role_can_run_every_case_tool(repo_root: Path) -> None:
     } - bridge_only
     assert tools & set(procs) <= set(grants), "a case tool the app calls is not granted"
     assert not bridge_only & set(grants), "the public role must not be granted the write-back"
+
+
+def test_only_the_admin_role_reaches_the_agent_tools(repo_root: Path) -> None:
+    # GENERATE_AI_STR (owned by the admin role) calls the agent's tools; nobody else
+    # gets a grant there, and the agent role is granted nothing on the data side.
+    deployer = Deployer(load_settings(repo_root=repo_root, profile="dev"))
+    roles = deployer.settings.sql_context()["role"]
+    agent = deployer.settings.sql_context()["cortex"]["agent_schema_fq"].upper()
+    sql = "\n".join(deployer.render(p) for p in deployer.stage_files("app_access")).upper()
+    to_roles = set(re.findall(rf"GRANT [^;]*{re.escape(agent)}[^;]* TO ROLE (\w+);", sql))
+    assert to_roles == {roles["admin"]}
+    assert "RC_AGENT_ROLE" not in sql
 
 
 def test_the_public_role_gets_nothing_on_ground_truth(repo_root: Path) -> None:

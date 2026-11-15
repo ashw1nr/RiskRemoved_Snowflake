@@ -28,9 +28,29 @@ def test_procedures_stage_renders_one_object_per_statement(repo_root: Path, prof
         "06_reset_cases.sql",
         "07_submit_ai_draft.sql",
         "08_simulator.sql",
+        "09_generate_ai_str.sql",
     ]
     # 08: the procedure, then SUSPEND and CREATE OR ALTER of its task.
-    assert [len(split_statements(s)) for s in files.values()] == [3, 1, 1, 1, 1, 1, 1, 3]
+    assert [len(split_statements(s)) for s in files.values()] == [3, 1, 1, 1, 1, 1, 1, 3, 1]
+
+
+def test_ai_str_runs_the_agent_tools_inside_snowflake_with_a_spend_cap(repo_root: Path) -> None:
+    sql = _rendered(repo_root, "dev")["09_generate_ai_str.sql"]
+    assert "PROCEDURE RISK_COPILOT_DEV.EVIDENCE_CHAIN.GENERATE_AI_STR_DEV(CASE_ID VARCHAR)" in sql
+    assert "COPY GRANTS" in sql and "EXECUTE AS OWNER" in sql
+    # Names and the cap come from conf, rendered once into the handler's CFG.
+    assert '"agent": "RISK_COPILOT_AGENT.STR"' in sql
+    assert '"submit": "RISK_COPILOT_DEV.EVIDENCE_CHAIN.SUBMIT_AI_DRAFT_DEV"' in sql
+    assert '"cooldown_minutes": 5' in sql and '"daily_runs": 30' in sql
+    # The agent's tools, in the agent's order, and the deterministic Reviewer last.
+    for tool in (
+        "PUT_EVIDENCE_PACKAGE",
+        "DRAFT_STR_NARRATIVE",
+        "REVIEW_STR_DRAFT",
+        "RENDER_STR_PDF",
+    ):
+        assert tool in sql
+    assert 'CFG["review"]' in sql and "GROUND_TRUTH" not in sql.upper()
 
 
 def test_simulator_holds_back_by_booking_time_and_never_reads_labels(repo_root: Path) -> None:

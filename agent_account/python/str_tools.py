@@ -2,6 +2,7 @@
 imported by the four procedures in agent_account/sql/03_tools.sql.
 
     get_package     GET_EVIDENCE_PACKAGE(package_id)
+    put_package     PUT_EVIDENCE_PACKAGE(case_id, source_account, source_database, source_artifact_id, payload)
     draft           DRAFT_STR_NARRATIVE(package_id, revision_notes)
     review          REVIEW_STR_DRAFT(draft_id)
     render_pdf      RENDER_STR_PDF(draft_id, target_artifact_id, target_content_hash, data_review_json)
@@ -15,6 +16,7 @@ the evidence rows, never from model output.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import json
@@ -283,6 +285,41 @@ def numeric_check(text: str, p: dict) -> dict:
         if d not in allowed["dates"]:
             defects.append(f"Date '{m.group(0)}' does not appear in the evidence")
     return {"passed": not defects, "tokens_checked": checked, "defects": defects}
+
+
+# ---------------------------------------------------------------------------
+# Tool 0: PUT_EVIDENCE_PACKAGE (called by the data side's GENERATE_AI_STR)
+# ---------------------------------------------------------------------------
+def canon(obj: Any) -> str:
+    """The canonical JSON the package hash is taken over (as the laptop bridge did)."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str, ensure_ascii=False)
+
+
+def package_id_for(case_id: str, digest: str, at: float) -> str:
+    return "PKG-" + hashlib.sha256(f"{case_id}|{digest}|{at}".encode()).hexdigest()[:16]
+
+
+def put_package(session, case_id: str, source_account: str, source_database: str,
+                source_artifact_id: str, payload: Any) -> dict:
+    """Store one hashed evidence package. The agent only ever sees what is handed
+    to it here: it holds no grant on the data database."""
+    import time
+
+    payload = _json(payload)
+    if not isinstance(payload, dict) or not payload.get("case") or not payload.get("computed_values"):
+        raise ValueError("Evidence package needs at least 'case' and 'computed_values'")
+    text = canon(payload)
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    package_id = package_id_for(case_id, digest, time.time())
+    session.sql(
+        f"""INSERT INTO {SCHEMA}.EVIDENCE_PACKAGE
+            (package_id, case_id, source_account, source_database, source_artifact_id,
+             source_content_hash, payload, payload_hash)
+            SELECT ?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?""",
+        params=[package_id, case_id, source_account, source_database, source_artifact_id,
+                (payload.get("baseline") or {}).get("content_hash"), text, digest],
+    ).collect()
+    return {"package_id": package_id, "payload_hash": digest}
 
 
 # ---------------------------------------------------------------------------
@@ -655,4 +692,6 @@ def render_pdf(session, draft_id: str, target_artifact_id: str | None = None,
                 target_content_hash, stage_path, pdf_sha256) SELECT ?, ?, ?, ?, ?, ?, ?""",
         params=[report_id, draft_id, case_id, target_artifact_id, target_content_hash, stage_path, digest],
     ).collect()
-    return {"report_id": report_id, "stage_path": stage_path, "pdf_sha256": digest, "bytes": len(pdf)}
+    return {"report_id": report_id, "stage_path": stage_path, "pdf_sha256": digest, "bytes": len(pdf),
+            # The caller may not be able to GET from this stage (a hosted app cannot): hand it the bytes.
+            "pdf_b64": base64.b64encode(pdf).decode("ascii")}

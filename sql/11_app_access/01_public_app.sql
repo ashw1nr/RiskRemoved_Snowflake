@@ -74,4 +74,9 @@ GRANT USAGE ON PROCEDURE {{ fq.evidence }}.{{ T.review_str }}(VARCHAR) TO ROLE {
 GRANT USAGE ON PROCEDURE {{ fq.evidence }}.{{ T.attest_str }}(VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ PUB }};
 GRANT USAGE ON PROCEDURE {{ fq.evidence }}.{{ T.reset_cases }}(VARCHAR, BOOLEAN) TO ROLE {{ PUB }};
 GRANT USAGE ON PROCEDURE {{ fq.evidence }}.{{ T.sim_control }}(VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ PUB }};
+{% if cortex.agent_schema_fq %}
+-- The AI STR button: the whole agent chain runs inside the procedure (owner's
+-- rights). The public role still holds nothing on SUBMIT_AI_DRAFT or the agent.
+GRANT USAGE ON PROCEDURE {{ fq.evidence }}.{{ T.generate_ai_str }}(VARCHAR) TO ROLE {{ PUB }};
+{% endif %}
 {% endif %}

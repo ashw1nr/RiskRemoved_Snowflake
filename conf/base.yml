@@ -150,6 +150,7 @@ case_tools:
   attest_str: ATTEST_STR                 # artifact -> ATTESTATION (the human gate)
   reset_cases: RESET_CASES               # demo reset: workflow rows deleted, cases reopened
   submit_ai_draft: SUBMIT_AI_DRAFT       # write-back: agent-account narrative -> FINDING n+1 + ARTIFACT
+  generate_ai_str: GENERATE_AI_STR       # AI STR end to end in Snowflake: package -> agent tools -> submit -> review -> PDF
   # Live simulator (sql/procedures/08_simulator.sql): every leg is loaded, and a
   # held_back flag decides what detection can see. SIM_CONTROL arms, ticks,
   # injects and releases; the task runs one tick a minute while started.
@@ -199,3 +200,13 @@ cortex:
   search_target_lag: 1 hour
   semantic_view: SV_RISK_COPILOT
   agent: RISK_COPILOT_AGENT
+  # The STR agent's tools (agent_account/). Shared across profiles: not suffixed.
+  # GENERATE_AI_STR (sql/procedures/09) calls them with USAGE granted by app_access.
+  agent_database: RISK_COPILOT_AGENT
+  agent_schema: STR
+  # The AI STR button is on a public URL: one run per case per cooldown, and a
+  # daily cap across the app. Each run is 2-4 large-model calls.
+  ai_str_cooldown_minutes: 5
+  ai_str_daily_runs: 30
+  reporting_bank: Demo Bank Ltd.
+  principal_officer: Rajesh Menon

@@ -598,11 +598,25 @@ class CortexObjects(_Frozen):
     search_target_lag: str
     semantic_view: str
     agent: str
+    #: Where the STR agent's tools live. Shared by every profile, so not suffixed.
+    agent_database: str = ""
+    agent_schema: str = ""
+    #: GENERATE_AI_STR spend cap (the button is on a public URL).
+    ai_str_cooldown_minutes: int = Field(default=5, ge=0)
+    ai_str_daily_runs: int = Field(default=30, ge=1)
+    #: Printed on the STR PDF.
+    reporting_bank: str = "Demo Bank Ltd."
+    principal_officer: str = "Rajesh Menon"
 
     @field_validator("search_service", "search_source_table", "semantic_view", "agent")
     @classmethod
     def _identifier(cls, v: str) -> str:
         return validate_identifier(v, what="Cortex object name")
+
+    @field_validator("agent_database", "agent_schema")
+    @classmethod
+    def _optional_identifier(cls, v: str) -> str:
+        return validate_identifier(v, what="Agent object name") if v else ""
 
 
 _RUNTIME_RE = re.compile(r"^SYSTEM\$[A-Z0-9_]+$")
@@ -1088,6 +1102,18 @@ class Settings(BaseModel):
                 "search_target_lag": self.cortex.search_target_lag,
                 "semantic_view": self.obj(self.cortex.semantic_view),
                 "agent": self.obj(self.cortex.agent),
+                "agent_schema_fq": (
+                    f"{self.cortex.agent_database}.{self.cortex.agent_schema}"
+                    if self.cortex.agent_database and self.cortex.agent_schema
+                    else ""
+                ),
+                "agent_database": self.cortex.agent_database,
+                "ai_str": {
+                    "cooldown_minutes": self.cortex.ai_str_cooldown_minutes,
+                    "daily_runs": self.cortex.ai_str_daily_runs,
+                    "reporting_bank": self.cortex.reporting_bank,
+                    "principal_officer": self.cortex.principal_officer,
+                },
             },
             # Exposed so SQL can reference structural ML settings (function
             # names, model names). Thresholds still come from POLICY_CLAUSE.

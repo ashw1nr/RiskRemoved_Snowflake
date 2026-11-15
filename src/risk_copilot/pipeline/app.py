@@ -42,7 +42,15 @@ _NEVER_UPLOAD = frozenset({"secrets.toml"})
 CONFIRMED = "CONFIRMED_BY_DETECTION"
 #: case_tools the app calls (the UDFs and data keys are not its business).
 _APP_PROCEDURES = frozenset(
-    {"gather_evidence", "draft_str", "review_str", "attest_str", "reset_cases", "sim_control"}
+    {
+        "gather_evidence",
+        "draft_str",
+        "review_str",
+        "attest_str",
+        "reset_cases",
+        "sim_control",
+        "generate_ai_str",
+    }
 )
 
 
