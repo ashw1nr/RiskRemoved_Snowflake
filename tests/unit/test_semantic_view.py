@@ -14,9 +14,18 @@ from risk_copilot.pipeline.deploy import Deployer, split_statements
 def _view(repo_root: Path, profile: str = "dev") -> str:
     """The CREATE statement without its comment lines (the header names what is excluded)."""
     d = Deployer(load_settings(repo_root=repo_root, profile=profile))
-    (path,) = d.stage_files("semantic")
+    (path,) = [p for p in d.stage_files("semantic") if p.name == "01_semantic_view.sql"]
     (statement,) = split_statements(d.render(path))
     return "\n".join(line for line in statement.splitlines() if not line.lstrip().startswith("--"))
+
+
+def test_regulatory_search_is_built_from_the_governed_clauses(repo_root: Path) -> None:
+    d = Deployer(load_settings(repo_root=repo_root, profile="dev"))
+    (path,) = [p for p in d.stage_files("semantic") if p.name == "02_regulatory_search.sql"]
+    sql = d.render(path)
+    assert "CORTEX SEARCH SERVICE RISK_COPILOT_DEV.GOVERNANCE.REGULATORY_SEARCH_SVC_DEV" in sql
+    assert "FROM RISK_COPILOT_DEV.GOVERNANCE.V_POLICY_CLAUSE_CURRENT" in sql
+    assert "GROUND_TRUTH" not in sql.upper()
 
 
 @pytest.mark.parametrize("profile", ["dev", "demo"])

@@ -33,6 +33,7 @@
     "audit": fq.audit,
     "agent": AG,
     "semantic_view": fq.curated ~ "." ~ cortex.semantic_view,
+    "search_service": fq.governance ~ "." ~ cortex.search_service,
     "database": db,
     "cooldown_minutes": cortex.ai_str.cooldown_minutes,
     "daily_runs": cortex.ai_str.daily_runs,
@@ -151,6 +152,31 @@ def _context(s, party_id):
     return out
 
 
+def _excerpts(s, signals, case):
+    """Regulation text for this case from Cortex Search (the unstructured side).
+
+    Prose only: REVIEW_STR rejects any figure in the narrative that is not a
+    computed value, so a number in a clause cannot reach the filing.
+    """
+    rules = sorted({str(x.get("rule_id") or "") for x in signals if x.get("rule_id")})
+    query = " ".join(filter(None, [
+        "suspicious transaction reporting obligations for",
+        " ".join(r.replace("_", " ").lower() for r in rules),
+        str(case.get("typology_id") or "").replace("_", " ").lower(),
+        "cash deposits reporting threshold filing deadline principal officer",
+    ]))
+    try:
+        req = {"query": query, "limit": 4,
+               "columns": ["clause_id", "source_document", "section_heading", "clause_text"]}
+        raw = s.sql(f"SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW('{CFG['search_service']}', ?)",
+                    params=[json.dumps(req)]).collect()[0][0]
+        hits = (_v(raw) or {}).get("results", [])
+        return {"query": query, "service": CFG["search_service"],
+                "results": [{k: h.get(k) for k in req["columns"]} for h in hits]}
+    except Exception as exc:  # context only: retrieval must not stop the STR
+        return {"query": query, "service": CFG["search_service"], "results": [], "error": str(exc)[:200]}
+
+
 def _package(s, case_id, artifact_id):
     ev = CFG["ev"]
     art = _rows(s, f"SELECT content, content_hash, finding_id FROM {ev}.ARTIFACT WHERE artifact_id = ?",
@@ -201,6 +227,7 @@ def _package(s, case_id, artifact_id):
         "source": {"account": account, "database": CFG["database"]},
         "reporting_entity": {"bank_name": CFG["reporting_bank"], "principal_officer": CFG["principal_officer"]},
         "analyst_context": _context(s, case["party_id"]),
+        "regulation_excerpts": _excerpts(s, signals, {"typology_id": content.get("typology_id")}),
     }
 
 
