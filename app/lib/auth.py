@@ -105,6 +105,15 @@ def available() -> list[str]:
     return list(PERSONAS)
 
 
+def officer_connected() -> bool:
+    """False on a hosted URL with [snowflake] but no [snowflake_officer].
+
+    There the officer's CALL runs as the shared service user, which lacks the
+    compliance role, so ATTEST_STR refuses every signature.
+    """
+    return not (_has("snowflake") and not _has("snowflake_officer"))
+
+
 def hidden(username: str) -> bool:
     """True where this persona's password comes from secrets and is not shown."""
     return _secret_password(username) is not None and not _shown(username)

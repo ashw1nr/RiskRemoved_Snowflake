@@ -183,7 +183,15 @@ else:
                 glyph="draw",
                 tone="navy",
             ):
-                if auth.can("can_attest"):
+                if auth.can("can_attest") and not auth.officer_connected():
+                    st.error(
+                        "Signing is not connected here: this deployment's secrets have no "
+                        "[snowflake_officer] section, so the signature would run as the shared "
+                        "service user and the database would refuse it. Add the officer's "
+                        "secrets (`riskcopilot app public-access --officer`) and restart.",
+                        icon=":material/link_off:",
+                    )
+                elif auth.can("can_attest"):
                     officer = auth.current() or {}
                     with st.form("attest", clear_on_submit=False, border=False):
                         attestor = st.text_input(
