@@ -183,20 +183,21 @@ else:
                 glyph="draw",
                 tone="navy",
             ):
-                if auth.can("can_attest") and not auth.officer_connected():
-                    st.error(
-                        "Signing is not connected here: this deployment's secrets have no "
-                        "[snowflake_officer] section, so the signature would run as the shared "
-                        "service user and the database would refuse it. Add the officer's "
-                        "secrets (`riskcopilot app public-access --officer`) and restart.",
-                        icon=":material/link_off:",
+                # Every persona gets the form: the refusal comes from ATTEST_STR's role
+                # check in the database, not from the page.
+                officer = auth.can("can_attest")
+                if not officer:
+                    st.info(
+                        "You are signed in as the analyst, who prepared this STR. Press Sign "
+                        "anyway: the database checks your Snowflake role and refuses.",
+                        icon=":material/lock:",
                     )
-                elif auth.can("can_attest"):
-                    officer = auth.current() or {}
+                with st.container():
+                    who = auth.current() or {}
                     with st.form("attest", clear_on_submit=False, border=False):
                         attestor = st.text_input(
                             "Your name",
-                            value=f"{officer.get('name', '')}, {officer.get('title', '')}",
+                            value=f"{who.get('name', '')}, {who.get('title', '')}",
                             placeholder="Principal Officer",
                         )
                         decision = st.radio(
@@ -227,13 +228,17 @@ else:
                                 st.session_state["signed"] = result
                                 st.rerun()
                             except Exception as exc:  # the gate's reason, shown verbatim
-                                st.error(f"Refused: {reason(exc)}")
-                else:
-                    st.warning(
-                        "Only the Principal Officer can sign. The analyst who prepared this STR "
-                        "cannot approve their own work.",
-                        icon=":material/lock:",
-                    )
+                                st.error(
+                                    f"Refused by Snowflake: {reason(exc)}",
+                                    icon=":material/gpp_bad:",
+                                )
+                                if officer and not auth.officer_connected():
+                                    st.caption(
+                                        "This deployment's secrets have no [snowflake_officer] "
+                                        "section, so the signature ran as the shared service "
+                                        "user, which lacks the compliance officer role."
+                                    )
+                if not officer:
                     st.button(
                         "Switch to the Principal Officer",
                         on_click=auth.sign_out,
