@@ -204,6 +204,8 @@ cortex:
   # GENERATE_AI_STR (sql/procedures/09) calls them with USAGE granted by app_access.
   agent_database: RISK_COPILOT_AGENT
   agent_schema: STR
+  str_agent: RC_STR_AGENT             # GENERATE_AI_STR runs it first; its tools are the fallback
+  agent_warehouse: RC_AGENT_WH
   # The AI STR button is on a public URL: one run per case per cooldown, and a
   # daily cap across the app. Each run is 2-4 large-model calls.
   ai_str_cooldown_minutes: 5

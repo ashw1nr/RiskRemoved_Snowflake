@@ -182,8 +182,12 @@ def _facts(p: dict) -> dict:
     """Everything the drafter may rely on, with figures as display strings."""
     cv = p.get("computed_values", {})
     subj = p.get("subject", {})
+    # Workflow dates (case opened, suspicion established, filing deadline) are not
+    # grounds and are not computed values, so REVIEW_STR would reject them in the
+    # prose. The PDF prints them from the case record; the drafter never sees them.
+    workflow = ("opened_at", "suspicion_established_at", "filing_deadline")
     return {
-        "case": p.get("case", {}),
+        "case": {k: v for k, v in p.get("case", {}).items() if k not in workflow},
         "figures": {k: v.get("display") for k, v in cv.items()},
         "subject": {
             "name": subj.get("FULL_NAME"),
@@ -690,7 +694,10 @@ def render_pdf(session, draft_id: str, target_artifact_id: str | None = None,
                   "numeric_check": _json(rows[0][5]) or {}, "reviewer_model": rows[0][6],
                   "advisories": (_json(rows[0][7]) or {}).get("defects", []) if rows[0][3] == "APPROVE" else []}
                  if rows[0][3] else None)
-    data_review = _json(data_review_json) if data_review_json else None
+    try:  # optional: a rejected draft has no data review, and the PDF still renders
+        data_review = _json(data_review_json) if data_review_json else None
+    except ValueError:
+        data_review = None
     pdf = _build_pdf(p, s, ai_review, data_review, target_artifact_id, target_content_hash)
     digest = hashlib.sha256(pdf).hexdigest()
     case_id = p.get("case", {}).get("case_id", "UNKNOWN")

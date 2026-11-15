@@ -601,6 +601,9 @@ class CortexObjects(_Frozen):
     #: Where the STR agent's tools live. Shared by every profile, so not suffixed.
     agent_database: str = ""
     agent_schema: str = ""
+    #: The Cortex Agent object and the warehouse its tools run on (agent_account/).
+    str_agent: str = ""
+    agent_warehouse: str = ""
     #: GENERATE_AI_STR spend cap (the button is on a public URL).
     ai_str_cooldown_minutes: int = Field(default=5, ge=0)
     ai_str_daily_runs: int = Field(default=30, ge=1)
@@ -613,7 +616,7 @@ class CortexObjects(_Frozen):
     def _identifier(cls, v: str) -> str:
         return validate_identifier(v, what="Cortex object name")
 
-    @field_validator("agent_database", "agent_schema")
+    @field_validator("agent_database", "agent_schema", "str_agent", "agent_warehouse")
     @classmethod
     def _optional_identifier(cls, v: str) -> str:
         return validate_identifier(v, what="Agent object name") if v else ""
@@ -1108,6 +1111,8 @@ class Settings(BaseModel):
                     else ""
                 ),
                 "agent_database": self.cortex.agent_database,
+                "str_agent": self.cortex.str_agent,
+                "agent_warehouse": self.cortex.agent_warehouse,
                 "ai_str": {
                     "cooldown_minutes": self.cortex.ai_str_cooldown_minutes,
                     "daily_runs": self.cortex.ai_str_daily_runs,

@@ -32,6 +32,7 @@
     "ev": EV,
     "audit": fq.audit,
     "agent": AG,
+    "str_agent": (AG ~ "." ~ cortex.str_agent) if cortex.str_agent else "",
     "semantic_view": fq.curated ~ "." ~ cortex.semantic_view,
     "search_service": fq.governance ~ "." ~ cortex.search_service,
     "database": db,
@@ -68,9 +69,15 @@ def _rows(s, sql, params=None):
 
 
 def _call(s, proc, *args, json_at=None):
-    """CALL proc(args); the argument at index json_at is a VARIANT, sent as JSON text."""
-    marks = ", ".join("PARSE_JSON(?)" if i == json_at else "?" for i in range(len(args)))
-    row = s.sql(f"CALL {proc}({marks})", params=list(args)).collect()
+    """CALL proc(args); the argument at index json_at is a VARIANT, sent as JSON text.
+
+    None is written as SQL NULL rather than bound: a bound None did not arrive
+    as NULL in a Python procedure's VARCHAR argument.
+    """
+    marks = ", ".join(
+        "NULL" if a is None else ("PARSE_JSON(?)" if i == json_at else "?") for i, a in enumerate(args)
+    )
+    row = s.sql(f"CALL {proc}({marks})", params=[a for a in args if a is not None]).collect()
     return _v(row[0][0]) if row else None
 
 
@@ -249,6 +256,32 @@ def _latest(s, package_id):
     return row
 
 
+def _run_agent(s, package_id, case_id):
+    """Agent-first: RC_STR_AGENT decides the tool calls. Returns (tools_used, error).
+
+    The agent's tools write AI_DRAFT / AI_REVIEW themselves, so the outcome is
+    read from those tables afterwards, exactly as the laptop bridge did.
+    """
+    if not CFG["str_agent"]:
+        return [], "no agent configured"
+    req = {"messages": [{"role": "user", "content": [
+        {"type": "text", "text": f"Prepare the STR for package {package_id} (case {case_id})."}]}]}
+    try:
+        raw = s.sql("SELECT SNOWFLAKE.CORTEX.DATA_AGENT_RUN(?, ?)",
+                    params=[CFG["str_agent"], json.dumps(req)]).collect()[0][0]
+    except Exception as exc:
+        return [], str(exc)[:300]
+    tools = []
+    try:
+        body = _v(raw) or {}
+        for part in (body.get("content") or []):
+            if part.get("type") == "tool_use":
+                tools.append((part.get("tool_use") or {}).get("name"))
+    except Exception:  # the response shape is informational only
+        pass
+    return [t for t in tools if t], None
+
+
 def _agent_tools(s, package_id):
     """The agent's tools in the agent's order: draft, review, one redraft on REJECT."""
     ag = CFG["agent"]
@@ -306,9 +339,16 @@ def run(session, case_id):
         package_id = pkg["package_id"]
         out.update(package_id=package_id, payload_hash=pkg["payload_hash"])
 
-        step("agent_tools")
-        _agent_tools(s, package_id)
+        step("agent")
+        tools, agent_error = _run_agent(s, package_id, case_id)
+        out.update(agent_tools=tools, agent_error=agent_error, agent_fallback=False)
         draft = _latest(s, package_id)
+        if draft is None or draft.get("decision") is None:
+            # The agent stopped short (error, budget, no review): run its tools in its order.
+            step("agent_fallback")
+            out["agent_fallback"] = True
+            _agent_tools(s, package_id)
+            draft = _latest(s, package_id)
         if draft is None or draft.get("status") != "DRAFTED":
             raise ValueError(f"No usable draft: {(draft or {}).get('error') or 'the drafter returned nothing'}")
         sections = draft["sections"] or {}

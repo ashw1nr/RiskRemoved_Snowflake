@@ -27,6 +27,14 @@ GRANT USAGE ON PROCEDURE {{ AG }}.RENDER_STR_PDF(VARCHAR, VARCHAR, VARCHAR, VARC
 GRANT SELECT ON TABLE {{ AG }}.AI_DRAFT TO ROLE {{ ADM }};
 GRANT SELECT ON TABLE {{ AG }}.AI_REVIEW TO ROLE {{ ADM }};
 GRANT SELECT, INSERT ON TABLE {{ AG }}.AGENT_RUN_LOG TO ROLE {{ ADM }};
+{% if cortex.str_agent %}
+-- Agent-first: GENERATE_AI_STR runs RC_STR_AGENT, which calls its tools (and
+-- reads the package through GET_EVIDENCE_PACKAGE) on its own warehouse.
+GRANT USAGE ON AGENT {{ AG }}.{{ cortex.str_agent }} TO ROLE {{ ADM }};
+GRANT USAGE ON PROCEDURE {{ AG }}.GET_EVIDENCE_PACKAGE(VARCHAR) TO ROLE {{ ADM }};
+GRANT USAGE ON WAREHOUSE {{ cortex.agent_warehouse }} TO ROLE {{ ADM }};
+GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE {{ ADM }};
+{% endif %}
 
 USE ROLE {{ ADM }};
 {% endif %}

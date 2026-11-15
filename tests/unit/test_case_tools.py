@@ -51,6 +51,11 @@ def test_ai_str_runs_the_agent_tools_inside_snowflake_with_a_spend_cap(repo_root
     ):
         assert tool in sql
     assert 'CFG["review"]' in sql and "GROUND_TRUTH" not in sql.upper()
+    # Agent-first: the Cortex Agent decides the tool calls; its tools are the fallback.
+    assert '"str_agent": "RISK_COPILOT_AGENT.STR.RC_STR_AGENT"' in sql
+    assert "SNOWFLAKE.CORTEX.DATA_AGENT_RUN" in sql and "agent_fallback" in sql
+    # Retrieval over the governed clauses (the unstructured side).
+    assert "SNOWFLAKE.CORTEX.SEARCH_PREVIEW" in sql
 
 
 def test_simulator_holds_back_by_booking_time_and_never_reads_labels(repo_root: Path) -> None:
