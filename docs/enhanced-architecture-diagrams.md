@@ -1,5 +1,10 @@
 # Risk & Compliance Copilot — Architecture Diagrams
 
+> **Target architecture.** These diagrams cover the full design, including
+> components on the roadmap. What is built is recorded in the
+> [README](../README.md); design decisions made during the build are in
+> [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
+
 > All diagrams are Mermaid. Render in GitHub, VS Code, Streamlit, or [mermaid.live](https://mermaid.live).
 
 ---

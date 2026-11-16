@@ -94,7 +94,7 @@
 <body>
 
 <h1>Risk & Compliance Copilot</h1>
-<div class="subtitle">Architecture Reference — 18 diagrams, all design decisions</div>
+<div class="subtitle">Architecture Reference — 18 diagrams, all design decisions. Target architecture, including roadmap components; the README records what is built.</div>
 
 <!-- NAV -->
 <div class="nav">
@@ -768,7 +768,7 @@ flowchart LR
     <div class="decision"><strong>Decided:</strong> <code>generate_str_xml()</code> is a Python stored procedure. Reads FINDING + EVIDENCE for structured fields via SQL. Takes narrative from FINDING.narrative as-is. Assembles with <code>xml.etree</code>. Validates against schema. LLM never touches XML.</div>
 
     <h3>Gap 7: Verified Query Inventory</h3>
-    <div class="decision"><strong>Decided:</strong> 20 verified queries across 8 categories: transaction lookup (1-3), velocity (4-6), threshold (7-9), network (10-12), sanctions (13-15), cross-silo (16-17), case status (18-19), refusal (20). SQL not yet written.</div>
+    <div class="decision"><strong>Planned (roadmap):</strong> 20 verified queries across 8 categories: transaction lookup (1-3), velocity (4-6), threshold (7-9), network (10-12), sanctions (13-15), cross-silo (16-17), case status (18-19), refusal (20).</div>
 
     <h3>Gap 8: RLS Roles</h3>
     <div class="decision"><strong>Decided:</strong> Two roles: <code>BRANCH_ANALYST_MUMBAI</code> (branch_region = MUMBAI only) and <code>COMPLIANCE_OFFICER</code> (sees all). RLS on DT_TRANSACTIONS_ENRICHED + DT_DIM_PARTY. Masking on PAN/Aadhaar fields.</div>

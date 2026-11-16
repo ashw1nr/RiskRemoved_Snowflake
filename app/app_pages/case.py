@@ -492,9 +492,10 @@ with st.container(border=True):
             (st.success if res.get("status") == "READY_FOR_ATTESTATION" else st.warning)(
                 f"**{res.get('status')}** · drafted by `{air.get('drafter_model')}` (attempt "
                 f"{res.get('attempt')}) · agent reviewer `{air.get('reviewer_model')}`: "
-                f"**{air.get('decision')}** · data-account Reviewer: **{dr.get('decision', 'not run')}**"
+                f"**{air.get('decision')}** · data-account Reviewer: "
+                f"**{dr.get('decision', 'not run')}**"
             )
-            for d in (air.get("defects") or []):
+            for d in air.get("defects") or []:
                 st.caption(f"- {d}")
             if res.get("pdf_bytes"):
                 st.download_button(

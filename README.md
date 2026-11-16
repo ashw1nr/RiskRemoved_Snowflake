@@ -27,7 +27,7 @@ SIGNAL  ->  EVIDENCE  ->  FINDING  ->  ARTIFACT  ->  ATTESTATION
 | 5 | ML, evaluation suites, governance, agent object, `AI_COMPLETE` narrative | **Done** |
 | 6 | New account (Nov 2026): data + STR agent in one account, retail-scaled data, in-Snowflake live simulator, narrative trace in the Reviewer, shared Ask/Slack conversation | **Done** on dev |
 
-647 unit tests pass (3 skip without capability evidence for the configured
+655 unit tests pass (3 skip without capability evidence for the configured
 connection); all SQL templates render for both profiles; key-pair auth works
 unattended. Build history and measurements: [`docs/build-log.md`](docs/build-log.md);
 the why/what/how of every architectural choice:
@@ -51,11 +51,12 @@ trusted because a model wrote it**: `REVIEW_STR`'s `narrative_trace` check
 rejects any amount, date or count in the prose that is not the display of a
 re-proven logged figure, whatever the agent's own reviewer said.
 
-**Detection scope, stated plainly.** One rule is implemented and evaluated end
-to end: `STRUCTURING_CROSS_ACCOUNT` (recall and precision 10/10 on dev). The
-other typologies in `conf/detection.yml` are registered, with generation support
-(shared devices, under-declared income, OpenSanctions lists), but have no
-detection SQL yet.
+**Detection scope.** `STRUCTURING_CROSS_ACCOUNT` is implemented and evaluated
+end to end against a hidden answer key (recall and precision 10/10 on dev). The
+rule registry in `conf/detection.yml` already carries the next typologies --
+shared devices, under-declared income, OpenSanctions screening -- with their
+thresholds governed in `POLICY_CLAUSE` and their data generated; each is one
+detection SQL file away (see [Roadmap](#roadmap)).
 
 ## Quick start
 
@@ -137,9 +138,9 @@ across AMLworld's full population, silently merging distinct parties.
 
 ## Snowflake-native ML
 
-**Tier 1** -- designed as built-in SQL; no `snowflake-ml-python`, no compute pool.
-**Neither is built yet** (no detection SQL calls them); `doctor` confirms both
-functions are available on the current account:
+**Tier 1, next** -- designed as built-in SQL, no `snowflake-ml-python`, no
+compute pool; `doctor` confirms both functions are available on the current
+account:
 
 - **`JAROWINKLER_SIMILARITY` fuzzy sanctions screening.** The design *cut* fuzzy
   matching as too complex; it is one scalar function. Exact match raises a
@@ -180,7 +181,8 @@ The same app runs in two hosted places:
 
 Both open on a sign-in page that shows the two demo accounts. The **AML Analyst**
 (`analyst` / `Analyst@2026`) investigates, drafts and reviews. The **Principal
-Officer** (`officer` / `Officer@2026`) signs. Each persona sees only their own
+Officer** (`officer` / `Officer@2026`; on the hosted app the officer's password
+comes from `[demo_auth]` in its Secrets) signs. Each persona sees only their own
 duty's controls (maker-checker). The Sign form is shown to both: the analyst's
 signature is refused by Snowflake's role check in `ATTEST_STR`, not by the page.
 
@@ -209,9 +211,8 @@ and case links are untouched. The audit log is kept, and the reset adds its own
 row, recording where it was run from (`via`). This breaks the evidence chain's
 append-only rule on purpose, so use it only on a demo database.
 
-Then open the deployed app once and check that it loads. Also click through one
-sign-off on a case you will not demo, then reset again. That sign-off has not yet
-been exercised from inside Streamlit in Snowflake; Ask has, and works there.
+Then open the deployed app once and check that it loads, and click through one
+sign-off on a case you will not demo, then reset again.
 
 **Click path** (times measured on the dev trial account, X-Small warehouse)
 
@@ -266,6 +267,23 @@ case per 5 minutes and 30 a day.
 From the laptop, `python -m risk_copilot.agentic.str_pipeline CASE-4399c4c86db5c6ea --out str.pdf`
 runs the earlier bridge version of the same chain. The Slack bot uses it
 (`str CASE-...`); it needs the Slack tokens in `bridge/.env`.
+
+## Roadmap
+
+The platform pieces are generic: a new typology is a detection SQL file plus a
+governed `POLICY_CLAUSE` row, and inherits the evidence chain, Reviewer, human
+gate and audit trail unchanged.
+
+| Next | Why it is ready |
+|---|---|
+| Sanctions screening (exact match signals; `JAROWINKLER_SIMILARITY` band raises a review task) | OpenSanctions list loaded; function confirmed available |
+| `INCOME_ACTIVITY_MISMATCH` | Retail-scaled declared income; 3x threshold already governed |
+| `SNOWFLAKE.ML.ANOMALY_DETECTION` velocity baselines | Unsupervised, so it cannot leak labels; function confirmed available |
+| Jira / external ticketing from automations | Needs an External Access Integration, which this account blocks; the case-event email alert (`CASE_EVENTS_ALERT_DEV`, deployed suspended; set `RC_ALERT_EMAIL` to enable) is the notification path today |
+| Credit early-warning (SMA / ECL) and further PS ribs | Same evidence-chain pattern; Liquidity (ALM) is the second rib already shipped |
+
+The design documents in `docs/` describe the full target architecture; this
+README and the code are the record of what is built.
 
 ## Development
 

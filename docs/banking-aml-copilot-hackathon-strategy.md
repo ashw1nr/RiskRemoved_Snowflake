@@ -1,4 +1,8 @@
 # Banking/NBFC Risk & Regulatory Copilot — Research & Design Strategy
+
+> **Design document (pre-build research).** It describes the full target vision,
+> including later ribs and integrations. What is built and running is recorded in
+> the [README](../README.md) (Status, Demo runbook, Roadmap).
 *Snowflake Cortex Code (CoCo) Hackathon — Problem Statement: Fraud, Liquidity, Credit Risk & Regulatory Reporting Copilot*
 
 ---
