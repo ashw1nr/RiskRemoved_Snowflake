@@ -170,14 +170,25 @@ The same app runs in two hosted places:
   3. At share.streamlit.io, create an app from the repository. Set the main file to
      `app/streamlit_app.py` and Python to 3.11.
   4. Paste `~/.snowflake/keys/rc_public_app_user_dev.streamlit-secrets.toml` into
-     Settings > Secrets. Never commit that file.
+     Settings > Secrets, then append the `[snowflake_officer]` and `[demo_auth]`
+     sections from `rc_public_officer_user_dev.streamlit-secrets.toml` (written by
+     `riskcopilot -p dev app public-access --officer`). Never commit either file.
+     Without `[snowflake_officer]` the officer signs as the shared service user,
+     which lacks the compliance role, and `ATTEST_STR` refuses every signature.
 - **Streamlit in Snowflake**, in Snowsight under Projects > Streamlit >
   `RISK_COPILOT_APP_DEV`. It runs on the container runtime with the owner's rights.
 
 Both open on a sign-in page that shows the two demo accounts. The **AML Analyst**
 (`analyst` / `Analyst@2026`) investigates, drafts and reviews. The **Principal
 Officer** (`officer` / `Officer@2026`) signs. Each persona sees only their own
-duty's controls (maker-checker).
+duty's controls (maker-checker). The Sign form is shown to both: the analyst's
+signature is refused by Snowflake's role check in `ATTEST_STR`, not by the page.
+
+**Running it locally** for the demo, pass the merged secrets explicitly:
+`streamlit run app/streamlit_app.py --secrets.files app/.streamlit/secrets.toml`
+(`app/.streamlit/secrets.toml` is git-ignored and holds both sections). Without
+that flag the app connects with the `.env` admin login, which holds the
+compliance role, so the analyst's signature would succeed.
 
 Every button is one stored-procedure call, and every call writes a row to
 `AUDIT.AGENT_ACTION_LOG`.
@@ -212,13 +223,14 @@ been exercised from inside Streamlit in Snowflake; Ask has, and works there.
 | 4 | Case | Turn on **Plant a defect**, then **2 · Draft STR** | Draft v1 claims ₹1,03,42,961 and cites `CTR_CASH_THRESHOLD_2026` | ~5 s |
 | 5 | Case | **3 · Run Reviewer** | **REJECT**, with 2 defects: the stated total vs the ₹94,02,691 its query returns, and a clause that does not exist. 4 queries re-run, no model | ~4 s |
 | 6 | Case | Turn the defect off, then **2 · Draft STR**, then **3 · Run Reviewer** | v2 states ₹94,02,691 and gets **APPROVE**: all 5 checks pass, including the narrative trace; v1 stays in the version history | ~9 s |
-| 7 | Case | **Go to sign-off**, then **Switch to the Principal Officer** and sign in | The approved STR, its hash, the Reviewer's checklist; the analyst is told only the officer can sign | -- |
-| 8 | Sign-off | Name, Attest, **Sign** without ticking the box | Refused: "Tick the confirmation to sign." | -- |
-| 9 | Sign-off | Tick, **Sign** | ATTESTED: the STR is FILED, the attestation records its hash; "filed without attestation" stays 0 | ~2 s |
-| 10 | Ask the data | "How many cases are there by status?" | Cortex Analyst's SQL and a chart: 1 CLOSED, 9 OPEN | ~5 s |
-| 11 | Governance & audit | Action log tab | The run above, one row per call, from the reset onward | -- |
+| 7 | Case → Sign-off | **Go to sign-off**; still the analyst, tick the box, **Sign** | **Refused by Snowflake:** "ATTEST_STR: only the compliance officer role may attest". The database refused, not the page | ~2 s |
+| 8 | Sign-off | **Switch to the Principal Officer** and sign in | The approved STR, its hash, the Reviewer's checklist | -- |
+| 9 | Sign-off | Name, Attest, **Sign** without ticking the box | Refused: "Tick the confirmation to sign." | -- |
+| 10 | Sign-off | Tick, **Sign** | ATTESTED: the STR is FILED, the attestation records its hash; "filed without attestation" stays 0 | ~2 s |
+| 11 | Ask the data | "How many cases are there by status?" | Cortex Analyst's SQL and a chart: 1 CLOSED, 9 OPEN | ~5 s |
+| 12 | Governance & audit | Action log tab | The run above, one row per call, with the **Snowflake user** behind each: the refused `ATTEST_STR` as `RC_PUBLIC_APP_USER_DEV`, the filed one as `RC_PUBLIC_OFFICER_USER_DEV` | -- |
 
-After step 9 the hero's buttons are disabled: a filed case cannot be redrafted.
+After step 10 the hero's buttons are disabled: a filed case cannot be redrafted.
 
 **Live streaming, from the dashboard (no laptop, no CLI)**
 
@@ -229,7 +241,7 @@ new cases inside Snowflake:
 
 | Button | What it does (measured on dev) |
 |---|---|
-| **Arm** | Clears the case queue, holds back everything booked from 03 Sep 2022: 3,764 legs visible, 6,300 held, 2 baseline cases |
+| **Arm** | Clears the case queue, holds back everything booked from 03 Sep 2022: 3,764 legs visible, 6,300 held, 2 baseline cases. **Deletes every signal, case, draft, review and attestation**, so never Arm between drafting and signing |
 | **Tick** | Releases the next 6 h of bookings (110, then 66 legs) |
 | **Auto: 1 tick/min** | Resumes `SIM_TICK_TASK_DEV`; it stops itself when nothing is held |
 | **Inject demo deposits** | Releases the hero's held legs at once: `CASE-4399c4c86db5c6ea` opens in the same call |
